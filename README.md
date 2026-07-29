@@ -41,7 +41,7 @@ See [docs/landed-cost.md](docs/landed-cost.md) for a fully worked example.
 npm install
 cp .env.example .env.local     # then fill in DATABASE_URL at minimum
 
-npm run db:push                # create the schema
+npm run db:migrate             # apply the committed SQL migrations
 npm run db:seed                # ~18 products, brands, FX rates, freight lanes, delivery zones
 
 npm run dev                    # http://localhost:3000
@@ -60,8 +60,9 @@ Anthropic key; the concierge returns a clear 503 instead of crashing.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest, once |
 | `npm run test:watch` | Vitest, watching |
-| `npm run db:push` | Push the schema straight to the database (development) |
-| `npm run db:generate` | Generate a SQL migration from the schema |
+| `npm run db:generate` | Generate a SQL migration from the schema (commit the result) |
+| `npm run db:migrate` | Apply committed migrations. Non-interactive — this is what CI/deploy runs |
+| `npm run db:push` | Diff the schema straight onto the database. **Local development only** — it prompts for confirmation on ambiguous changes and will hang a deploy |
 | `npm run db:seed` | Seed reference data and the catalogue (idempotent) |
 | `npm run db:studio` | Drizzle Studio |
 
