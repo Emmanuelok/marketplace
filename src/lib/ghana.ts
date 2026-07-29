@@ -132,12 +132,19 @@ export interface ParsedPhone {
 /**
  * Accepts +233XXXXXXXXX, 233XXXXXXXXX, 0XXXXXXXXX and XXXXXXXXX (9 digits,
  * leading zero omitted), with any punctuation.
+ *
+ * Also accepts the very common "+233 (0) 24 123 4567" form. The parenthesised
+ * zero is the national trunk prefix, which is redundant once the country code
+ * is present — people write it anyway, and rejecting it means rejecting a
+ * correctly-identified number.
  */
 export function parseGhanaPhone(input: string): ParsedPhone | null {
   const digits = input.replace(/[^\d]/g, "");
   let subscriber: string; // 9 digits, no leading zero
 
-  if (digits.startsWith("233") && digits.length === 12) {
+  if (digits.startsWith("2330") && digits.length === 13) {
+    subscriber = digits.slice(4);
+  } else if (digits.startsWith("233") && digits.length === 12) {
     subscriber = digits.slice(3);
   } else if (digits.startsWith("0") && digits.length === 10) {
     subscriber = digits.slice(1);

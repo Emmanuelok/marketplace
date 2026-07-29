@@ -74,10 +74,14 @@ export interface LandedCostInput {
   /** Insurance premium as a fraction of goods value, in basis points. */
   readonly insuranceBps?: number;
   /**
-   * Overrides for statutory rates. Supplied from the `tax_rates` table so a
-   * budget change does not require a deploy.
+   * Overrides for statutory rates, supplied from the `tax_rates` table so a
+   * budget change is a data edit rather than a deploy.
+   *
+   * Typed as `number` per key rather than `Partial<typeof GHANA_LEVIES>` —
+   * that would inherit the `as const` literal types and only ever accept the
+   * values it was meant to replace.
    */
-  readonly levyOverrides?: Partial<typeof GHANA_LEVIES>;
+  readonly levyOverrides?: Partial<Record<keyof typeof GHANA_LEVIES, number>>;
   /** Explicit duty rate in bps; overrides the band when a real HS code exists. */
   readonly dutyBpsOverride?: number;
 }
