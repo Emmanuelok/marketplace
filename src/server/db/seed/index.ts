@@ -6,7 +6,7 @@
  *   npm run db:push && npm run db:seed
  */
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { GHANA_LEVIES, GHANA_REGIONS } from "@/lib/ghana";
 import { newId } from "@/lib/ids";
@@ -31,7 +31,24 @@ function log(step: string, detail: string): void {
   process.stdout.write(`  ${step.padEnd(18)} ${detail}\n`);
 }
 
+/**
+ * Reference data is append-only by nature (an FX rate has an `effectiveAt`, a
+ * tax rate has an `effectiveFrom`), so re-inserting it would grow the tables
+ * without changing behaviour — and `delivery_zones` has a unique index on
+ * `code`, so a second insert throws outright. Seeding is therefore skipped
+ * entirely once the tables are populated.
+ */
+async function referenceAlreadySeeded(): Promise<boolean> {
+  const rows = await db.select({ id: deliveryZones.id }).from(deliveryZones).limit(1);
+  return rows.length > 0;
+}
+
 async function seedReference(): Promise<void> {
+  if (await referenceAlreadySeeded()) {
+    log("reference", "already seeded, skipping");
+    return;
+  }
+
   // Illustrative mid-market rates. Refresh from a provider before taking
   // real payments — an out-of-date rate silently erodes import margin.
   const rates: [string, number][] = [
@@ -260,6 +277,12 @@ async function seedProducts(ids: Map<string, string>): Promise<void> {
       .where(sql`${products.slug} = ${product.slug}`)
       .limit(1);
     const resolvedId = resolved[0]?.id ?? productId;
+
+    // Images and reviews hang off the product with no natural unique key, so
+    // they are replaced rather than upserted — otherwise every re-run stacks
+    // another copy onto the gallery.
+    await db.delete(productImages).where(eq(productImages.productId, resolvedId));
+    await db.delete(reviews).where(eq(reviews.productId, resolvedId));
 
     for (const [index, image] of product.images.entries()) {
       await db.insert(productImages).values({
