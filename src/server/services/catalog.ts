@@ -61,8 +61,9 @@ export async function listProducts(filters: ProductFilters = {}): Promise<Produc
       .select({
         productId: productVariants.productId,
         variantId: sql<string>`min(${productVariants.id})`.as("variant_id"),
-        priceMinor: sql<number>`min(${productVariants.priceMinor})`.as("price_minor"),
-        compareAtMinor: sql<number | null>`max(${productVariants.compareAtMinor})`.as("compare_at_minor"),
+        // int8 aggregates come back as strings — see toMinor.
+        priceMinor: sql<string>`min(${productVariants.priceMinor})`.as("price_minor"),
+        compareAtMinor: sql<string | null>`max(${productVariants.compareAtMinor})`.as("compare_at_minor"),
       })
       .from(productVariants)
       .where(sql`${productVariants.archivedAt} is null`)
@@ -145,16 +146,28 @@ type ListRow = {
   brandAuthorised: boolean | null;
   categorySlug: string;
   variantId: string;
-  priceMinor: number;
-  compareAtMinor: number | null;
+  priceMinor: string;
+  compareAtMinor: string | null;
   imageUrl: string | null;
   placeholderColor: string | null;
 };
 
+/**
+ * node-postgres returns int8 as a string, and Drizzle's `mode: "number"` only
+ * covers declared columns — not raw `sql` aggregates like min()/max(). Without
+ * this, money() rejects the string and listProducts silently returns nothing.
+ */
+function toMinor(value: string | number | null): number | null {
+  if (value === null) return null;
+  const minor = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(minor) ? minor : null;
+}
+
 async function toListItem(row: ListRow): Promise<ProductListItem> {
   // Imported items must be priced through the landed-cost engine, not read off
   // the variant row — the stored price is only a stale hint for sorting.
-  let price: Money = money(row.priceMinor, "GHS");
+  const compareAtMinor = toMinor(row.compareAtMinor);
+  let price: Money = money(toMinor(row.priceMinor) ?? 0, "GHS");
   let etaDays: readonly [number, number] = [1, 3];
   if (row.fulfillmentType === "order_to_ship") {
     try {
@@ -177,7 +190,7 @@ async function toListItem(row: ListRow): Promise<ProductListItem> {
     imageUrl: row.imageUrl,
     placeholderColor: row.placeholderColor,
     price,
-    compareAt: row.compareAtMinor !== null ? money(row.compareAtMinor, "GHS") : null,
+    compareAt: compareAtMinor !== null ? money(compareAtMinor, "GHS") : null,
     ratingAverage: row.ratingAverage,
     ratingCount: row.ratingCount,
     fulfillmentType: row.fulfillmentType as FulfillmentType,
